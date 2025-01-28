@@ -1,13 +1,72 @@
 import { http, HttpResponse } from 'msw';
+import { API_URL } from '../api/restaurant';
+import mockRestaurants from './restaurants.json';
+import { Restaurant } from '../types/restaurant';
 
 export const handlers = [
-  // Intercept "GET https://example.com/user" requests...
-  http.get('https://example.com/user', () => {
-    // ...and respond to them using this JSON response.
-    return HttpResponse.json({
-      id: 'c7b3d8e0-5e0b-4b0f-8b3a-3b9f4b3d3b3d',
-      firstName: 'John',
-      lastName: 'Maverick',
-    });
+  http.get(`${API_URL}/restaurants`, ({ request }) => {
+    const url = new URL(request.url);
+    const params = new URLSearchParams(url.search);
+
+    const selectedCategory = params.get('category');
+    const selectedSorting = params.get('sort');
+
+    let filteredData = [...mockRestaurants];
+
+    if (selectedCategory) {
+      filteredData = filteredData.filter(
+        (data) => data.category === selectedCategory
+      );
+    }
+
+    if (selectedSorting) {
+      filteredData.sort((a, b) => {
+        if (selectedSorting === 'nameAsc') {
+          return a.name.localeCompare(b.name);
+        } else {
+          return a.distance - b.distance;
+        }
+      });
+    }
+
+    return HttpResponse.json(filteredData);
+  }),
+
+  http.post(`${API_URL}/restaurant`, async ({ request }) => {
+    const requestBody = (await request.json()) as Omit<Restaurant, 'id'>;
+
+    const newData = {
+      ...requestBody,
+      id: (mockRestaurants.length + 1).toString(),
+      distance: Number(requestBody.distance),
+      description: requestBody.description ?? '',
+      link: requestBody.link ?? '',
+    };
+
+    mockRestaurants.push(newData);
+
+    return HttpResponse.json(mockRestaurants);
+  }),
+
+  http.delete(`${API_URL}/restaurant/:id`, async ({ request }) => {
+    const url = new URL(request.url);
+    const id = url.pathname.split('/').at(-1);
+    const index = mockRestaurants.findIndex(
+      (restaurant) => restaurant.id === id
+    );
+    mockRestaurants.splice(index, 1);
+
+    return HttpResponse.json(mockRestaurants);
+  }),
+
+  http.post(`${API_URL}/restaurant/:id`, async ({ request }) => {
+    const url = new URL(request.url);
+    const id = url.pathname.split('/').at(-1);
+    const index = mockRestaurants.findIndex(
+      (restaurant) => restaurant.id === id
+    );
+    mockRestaurants[index].isLiked = !mockRestaurants[index].isLiked;
+
+    return HttpResponse.json(mockRestaurants);
   }),
 ];
